@@ -1,15 +1,54 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PhoneShell } from "./shell/PhoneShell";
 import { HomePage } from "./pages/Home/HomePage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { UserProfilePage } from "./pages/Profile/UserProfilePage";
 import type { RouteName } from "./constants/apps";
+import type { UserProfile } from "./types/models";
+import {
+  getUserProfile,
+  saveUserProfile,
+} from "./db/database";
 
 export default function App() {
   const [route, setRoute] = useState<RouteName>("home");
   const [history, setHistory] = useState<RouteName[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getUserProfile().then((loadedProfile) => {
+      if (!cancelled) {
+        setProfile(loadedProfile);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!profile?.avatarBlob) {
+      setAvatarUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(profile.avatarBlob);
+    setAvatarUrl(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [profile?.avatarBlob]);
 
   function navigate(nextRoute: RouteName) {
-    if (nextRoute === route) return;
+    if (nextRoute === route) {
+      return;
+    }
+
     setHistory((current) => [...current, route]);
     setRoute(nextRoute);
   }
@@ -19,14 +58,37 @@ export default function App() {
       const next = [...current];
       const previous = next.pop();
 
-      if (previous) {
-        setRoute(previous);
-      } else {
-        setRoute("home");
-      }
+      setRoute(previous ?? "home");
 
       return next;
     });
+  }
+
+  async function handleProfileSaved(nextProfile: UserProfile) {
+    const savedProfile = await saveUserProfile(nextProfile);
+    setProfile(savedProfile);
+  }
+
+  function renderPage() {
+    if (route === "home") {
+      return <HomePage onNavigate={navigate} />;
+    }
+
+    if (route === "profiles" && profile) {
+      return (
+        <UserProfilePage
+          profile={profile}
+          onSaved={handleProfileSaved}
+        />
+      );
+    }
+
+    return (
+      <PlaceholderPage
+        route={route}
+        onNavigate={navigate}
+      />
+    );
   }
 
   return (
@@ -35,12 +97,9 @@ export default function App() {
       canGoBack={route !== "home"}
       onBack={goBack}
       onNavigate={navigate}
+      avatarUrl={avatarUrl}
     >
-      {route === "home" ? (
-        <HomePage onNavigate={navigate} />
-      ) : (
-        <PlaceholderPage route={route} onNavigate={navigate} />
-      )}
+      {renderPage()}
     </PhoneShell>
   );
 }
