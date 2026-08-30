@@ -1018,3 +1018,413 @@ body {
   }
 }
 
+/* ================================
+   mmi机基础框架修正版
+================================ */
+
+html,
+body {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.top-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.title-block {
+  flex: 1;
+}
+
+.back-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-right: 7px;
+  border: 1px solid rgba(255,255,255,.7);
+  border-radius: 50%;
+  color: #28628e;
+  font-size: 32px;
+  line-height: 1;
+  background: rgba(255,255,255,.34);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.9),
+    0 5px 13px rgba(54,126,179,.12);
+}
+
+.back-button:hover,
+.back-button:active {
+  background: rgba(255,255,255,.62);
+}
+
+.header-avatar {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+}
+
+.header-avatar img {
+  display: none;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.header-avatar img.visible {
+  display: block;
+}
+
+.header-avatar span.hidden {
+  display: none;
+}
+
+/* 欢迎卡片不再被固定高度限制 */
+.welcome-card {
+  min-height: 170px;
+}
+
+.welcome-card h2 {
+  line-height: 1.5;
+}
+
+/* 滑动分页 */
+.home-pager {
+  width: 100%;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.home-track {
+  display: flex;
+  width: 200%;
+  transition:
+    transform .28s cubic-bezier(.22,.8,.22,1);
+  will-change: transform;
+}
+
+.home-page {
+  width: 50%;
+  min-width: 50%;
+  padding-right: 2px;
+}
+
+.page-label {
+  margin: 20px 3px 12px;
+  color: #244e70;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.swipe-hint {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  margin: 15px 0 24px;
+  color: #6592ad;
+  font-size: 10px;
+}
+
+.page-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.6);
+  box-shadow: 0 1px 4px rgba(52,110,153,.2);
+}
+
+.page-dot.active {
+  width: 18px;
+  border-radius: 99px;
+  background: #4d9bd2;
+}
+
+/* App 图标不再使用灰色边框 */
+.app-icon {
+  border: 1px solid rgba(255,255,255,.78);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255,255,255,.55),
+      transparent 43%
+    ),
+    linear-gradient(
+      145deg,
+      #8ed3ff,
+      #3889cf
+    );
+  box-shadow:
+    inset 0 1px 2px rgba(255,255,255,.95),
+    inset 0 -8px 18px rgba(39,117,181,.13),
+    0 9px 20px rgba(52,130,193,.18);
+}
+
+.app-item:active .app-icon {
+  transform: scale(.92);
+}
+
+.app-label {
+  color: #2d6289;
+}
+
+/* 底部导航固定为四项 */
+.bottom-nav {
+  grid-template-columns: repeat(4, 1fr);
+  background: rgba(227,246,255,.54);
+}
+
+.nav-button {
+  min-height: 50px;
+  color: #7194aa;
+}
+
+.nav-button.active {
+  color: #277bb8;
+  background: rgba(255,255,255,.58);
+}
+
+/* 移除旧的灰色胶囊感 */
+.capsule,
+.capsule-button,
+.setting-item,
+.page-arrow,
+.text-button,
+.edit-card-button {
+  border: 1px solid rgba(255,255,255,.7);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.75),
+    0 5px 14px rgba(58,125,171,.08);
+}
+
+.capsule {
+  background: rgba(255,255,255,.38);
+}
+
+.capsule-button {
+  min-height: 44px;
+  background: rgba(255,255,255,.46);
+}
+
+.capsule-button.primary {
+  color: white;
+  border-color: rgba(255,255,255,.65);
+  background:
+    linear-gradient(135deg, #81ccfc, #3987ca);
+}
+
+.capsule-button.secondary {
+  color: #3173a2;
+  background: rgba(255,255,255,.5);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 15px;
+}
+
+/* 可点击设置项 */
+.setting-item.clickable {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.setting-item.clickable:active {
+  transform: scale(.985);
+  background: rgba(255,255,255,.62);
+}
+
+.settings-section-title {
+  margin: 20px 3px 9px;
+  color: #3e7599;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.switch {
+  position: relative;
+  width: 44px;
+  height: 25px;
+  flex: 0 0 auto;
+  border-radius: 99px;
+  background: rgba(66,121,158,.2);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 5px rgba(27,80,119,.16);
+  transition: transform .18s ease;
+}
+
+.switch.on {
+  background: #57a7df;
+}
+
+.switch.on::after {
+  transform: translateX(19px);
+}
+
+/* user 面具 */
+.user-preview {
+  display: flex;
+  justify-content: center;
+  padding: 13px 0 4px;
+}
+
+.user-large-avatar {
+  display: grid;
+  place-items: center;
+  width: 86px;
+  height: 86px;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,.75);
+  border-radius: 50%;
+  color: white;
+  font-size: 24px;
+  font-weight: 800;
+  background: linear-gradient(145deg, #8ed4ff, #3987c9);
+  box-shadow:
+    inset 0 1px 2px rgba(255,255,255,.9),
+    0 12px 25px rgba(47,125,187,.2);
+}
+
+.user-large-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 世界书 */
+.worldbook-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px;
+  margin-bottom: 10px;
+}
+
+.worldbook-card h3 {
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.worldbook-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: #5d8199;
+  font-size: 11px;
+  line-height: 1.7;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* 图片头像 */
+.image-avatar {
+  overflow: hidden;
+  padding: 0;
+}
+
+.image-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 聊天基础框架 */
+.chat-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.chat-top-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+}
+
+.chat-avatar-button {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 18px;
+  color: white;
+  font-weight: 800;
+  background: linear-gradient(145deg, #91d4ff, #3887c9);
+}
+
+.empty-chat {
+  margin-top: 18px;
+  padding: 35px 20px;
+  text-align: center;
+}
+
+.empty-chat small {
+  color: #7c9caf;
+  font-size: 10px;
+}
+
+.chat-composer {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  margin-top: auto;
+  padding: 15px 0 5px;
+}
+
+.chat-composer textarea {
+  min-height: 45px;
+  max-height: 130px;
+  border: 1px solid rgba(255,255,255,.75);
+  border-radius: 22px;
+  resize: vertical;
+  background: rgba(255,255,255,.52);
+}
+
+.send-button {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: white;
+  background: linear-gradient(145deg, #7cc9fa, #3986c9);
+}
+
+/* 防止移动端横向撑开 */
+.app-viewport,
+.phone-screen {
+  min-width: 0;
+}
+
+@media (max-width: 390px) {
+  .app-grid {
+    gap: 13px 5px;
+  }
+
+  .app-icon {
+    width: 57px;
+    height: 57px;
+  }
+}
+
