@@ -2,61 +2,81 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#76bfff">
-  <meta name="description" content="mmi机——住着你的 char 的晶蓝小手机">
+  <meta
+    name="viewport"
+    content="width=device-width,
+             initial-scale=1,
+             maximum-scale=1,
+             user-scalable=no,
+             viewport-fit=cover"
+  >
+
+  <meta name="theme-color" content="#72bdf3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
   <title>mmi机</title>
 
   <link rel="stylesheet" href="./css/style.css">
 
-  <!-- 第一版使用 Dexie 管理 IndexedDB。
-       正式离线发布时，将该文件下载到 vendor/ 目录本地引用。 -->
   <script src="https://cdn.jsdelivr.net/npm/dexie@4.0.8/dist/dexie.min.js"></script>
 </head>
 
 <body>
-  <main class="phone-shell" id="phoneShell">
+  <main class="phone-shell">
     <div class="phone-screen">
 
-      <!-- 状态栏 -->
       <header class="status-bar">
         <span id="statusTime">09:41</span>
+
         <div class="status-icons">
-          <span>⌁</span>
+          <span id="networkStatus">●</span>
           <span>▮▮▮</span>
           <span>▰</span>
         </div>
       </header>
 
-      <!-- 顶部标题 -->
-      <section class="top-header">
-        <div>
+      <header class="top-header">
+        <button
+          class="back-button hidden"
+          id="backButton"
+          aria-label="返回"
+        >
+          ‹
+        </button>
+
+        <div class="title-block">
           <p class="eyebrow">MY MINI MOBILE</p>
           <h1 id="pageTitle">mmi机</h1>
         </div>
-        <button class="header-avatar" id="userAvatarButton" aria-label="用户资料">
+
+        <button
+          class="header-avatar"
+          id="userAvatarButton"
+          aria-label="用户资料"
+        >
           <span>你</span>
         </button>
-      </section>
+      </header>
 
-      <!-- 应用内容区域 -->
       <section class="app-viewport" id="appViewport"></section>
 
-      <!-- 底部导航 -->
       <nav class="bottom-nav">
         <button class="nav-button active" data-route="home">
           <span class="nav-icon">⌂</span>
           <span>桌面</span>
         </button>
+
         <button class="nav-button" data-route="messages">
           <span class="nav-icon">◌</span>
           <span>消息</span>
         </button>
+
         <button class="nav-button" data-route="gallery">
           <span class="nav-icon">▧</span>
           <span>相册</span>
         </button>
+
         <button class="nav-button" data-route="settings">
           <span class="nav-icon">⚙</span>
           <span>设置</span>
@@ -66,28 +86,32 @@
     </div>
   </main>
 
-  <!-- char 心声弹窗 -->
+  <!-- char 心声 -->
   <div class="modal-layer hidden" id="charModal">
     <article class="char-modal">
       <button class="modal-close" id="closeCharModal">×</button>
 
       <div class="char-modal-heading">
-        <div class="large-char-avatar" id="modalCharAvatar">澈</div>
+        <div class="large-char-avatar" id="modalCharAvatar">?</div>
+
         <div>
           <p class="eyebrow">CHAR PROFILE</p>
-          <h2 id="modalCharName">沈澈</h2>
-          <p class="muted-text" id="modalCharSubtitle">你的专属角色</p>
+          <h2 id="modalCharName">未命名 char</h2>
+          <p class="muted-text" id="modalCharSubtitle">
+            点击头像查看心声
+          </p>
         </div>
       </div>
 
       <div class="char-status-row">
         <div class="status-pill">
           <span>心情</span>
-          <strong id="modalMood">平静</strong>
+          <strong id="modalMood">未知</strong>
         </div>
+
         <div class="status-pill">
           <span>关系</span>
-          <strong id="modalAffection">12</strong>
+          <strong id="modalAffection">0</strong>
         </div>
       </div>
 
@@ -97,15 +121,15 @@
           <span>char 心声</span>
           <span class="private-badge">仅你可见</span>
         </div>
-        <p id="modalThoughts">
-          他刚刚看见你上线了，但还在犹豫要不要主动发消息。
-        </p>
+
+        <p id="modalThoughts">暂无心声记录。</p>
       </section>
 
       <div class="modal-actions">
         <button class="capsule-button primary" id="openCharChat">
           打开聊天
         </button>
+
         <button class="capsule-button secondary" id="openCharProfile">
           查看档案
         </button>
