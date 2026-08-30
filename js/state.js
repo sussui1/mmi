@@ -1,5 +1,6 @@
 export const defaultState = {
   route: "home",
+  homePage: 0,
 
   theme: {
     wallpaper: "crystal-blue",
@@ -11,36 +12,56 @@ export const defaultState = {
     narrativeMode: "dialogue",
     replyPace: "realistic",
     memoryStrength: "balanced",
+
+    // 主动来信默认关闭
     proactiveMessages: false,
+
     voiceInput: true,
-    tts: true
+    tts: true,
+
+    // 最近消息上下文轮数
+    contextRounds: 20,
+
+    // 总结开关
+    autoSummary: false
   },
 
-  chars: [
-    {
-      id: "char_shen_che",
-      name: "沈澈",
-      avatarText: "澈",
-      subtitle: "安静、敏感，偶尔会说很长的话",
-      mood: "平静",
-      affection: 12,
-      thoughts:
-        "他刚刚看见你上线了，但还在犹豫要不要主动发消息。",
-      profile:
-        "沈澈不太擅长直接表达情绪。平时说话克制，回复长度由当下心情和事件决定。真正在意的时候，反而会装作若无其事。",
-      replyStyle: {
-        minMessages: 1,
-        maxMessages: 3,
-        length: "character",
-        narrative: "dialogue"
-      },
-      proactive: {
-        enabled: false,
-        mode: "character",
-        frequency: "sometimes",
-        activeStart: "08:00",
-        activeEnd: "23:00"
-      }
-    }
+  // 欢迎卡片可由用户自行修改
+  welcomeText: {
+    eyebrow: "WELCOME BACK",
+    title: "今天也来看看你的世界吧。",
+    description: "这里可以放你的 char、记忆、故事和还没有发生的事情。"
+  },
+
+  // 正式启动时为空，不内置普通 char
+  chars: [],
+
+  // mmi助手不是默认 char。
+  // 用户在设置页开启后才创建。
+  assistant: {
+    enabled: false,
+    name: "mmi助手",
+    avatarText: "M",
+    profile: "负责管理 mmi机、解答使用问题和协助配置接口。",
+    mood: "待机",
+    affection: 0,
+    thoughts: "我还没有被启用。"
+  },
+
+  // 用户自定义桌面顺序
+  desktopOrder: [
+    "messages",
+    "worldbook",
+    "characters",
+    "settings",
+    "appearance",
+    "group",
+    "offline",
+    "gallery",
+    "forum",
+    "fan-extra",
+    "tools",
+    "shop",
+    "backup"
   ]
 };
