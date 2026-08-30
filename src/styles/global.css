@@ -1,0 +1,45 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 15% 10%, #d8f8ff 0, transparent 28%),
+    radial-gradient(circle at 90% 80%, #dfe4ff 0, transparent 32%),
+    #b6d5e5;
+  color: var(--ink-900);
+  font-family:
+    Inter, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
