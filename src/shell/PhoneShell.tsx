@@ -8,6 +8,7 @@ interface PhoneShellProps {
   canGoBack: boolean;
   onBack: () => void;
   onNavigate: (route: RouteName) => void;
+  avatarUrl: string | null;
   children: ReactNode;
 }
 
@@ -16,6 +17,7 @@ export function PhoneShell({
   canGoBack,
   onBack,
   onNavigate,
+  avatarUrl,
   children,
 }: PhoneShellProps) {
   const isHome = route === "home";
@@ -28,6 +30,7 @@ export function PhoneShell({
           canGoBack={canGoBack}
           onBack={onBack}
           onOpenProfile={() => onNavigate("profiles")}
+          avatarUrl={avatarUrl}
         />
 
         <div className={`shell-content ${isHome ? "shell-content-home" : ""}`}>
