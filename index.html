@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+
   <meta
     name="viewport"
     content="width=device-width,
@@ -13,7 +14,10 @@
 
   <meta name="theme-color" content="#72bdf3">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="black-translucent"
+  >
 
   <title>mmi机</title>
 
@@ -38,8 +42,8 @@
 
       <header class="top-header">
         <button
-          class="back-button hidden"
           id="backButton"
+          class="back-button hidden"
           aria-label="返回"
         >
           ‹
@@ -50,31 +54,37 @@
           <h1 id="pageTitle">mmi机</h1>
         </div>
 
+        <!-- 右上角 user 面具入口 -->
         <button
           class="header-avatar"
           id="userAvatarButton"
-          aria-label="用户资料"
+          aria-label="user 面具"
         >
-          <span>你</span>
+          <span id="userAvatarText">你</span>
+          <img id="userAvatarImage" alt="user头像">
         </button>
       </header>
 
-      <section class="app-viewport" id="appViewport"></section>
+      <section
+        class="app-viewport"
+        id="appViewport"
+      ></section>
 
+      <!-- 固定底部导航 -->
       <nav class="bottom-nav">
-        <button class="nav-button active" data-route="home">
-          <span class="nav-icon">⌂</span>
-          <span>桌面</span>
-        </button>
-
         <button class="nav-button" data-route="messages">
           <span class="nav-icon">◌</span>
           <span>消息</span>
         </button>
 
-        <button class="nav-button" data-route="gallery">
-          <span class="nav-icon">▧</span>
-          <span>相册</span>
+        <button class="nav-button" data-route="group">
+          <span class="nav-icon">◎</span>
+          <span>群聊</span>
+        </button>
+
+        <button class="nav-button" data-route="worldbook">
+          <span class="nav-icon">✧</span>
+          <span>世界书</span>
         </button>
 
         <button class="nav-button" data-route="settings">
@@ -82,22 +92,105 @@
           <span>设置</span>
         </button>
       </nav>
-
     </div>
   </main>
 
-  <!-- char 心声 -->
-  <div class="modal-layer hidden" id="charModal">
+  <!-- user 面具 -->
+  <div
+    class="modal-layer hidden"
+    id="userModal"
+  >
     <article class="char-modal">
-      <button class="modal-close" id="closeCharModal">×</button>
+      <button
+        class="modal-close"
+        id="closeUserModal"
+      >
+        ×
+      </button>
+
+      <p class="eyebrow">USER MASK</p>
+      <h2>user 面具</h2>
+
+      <div class="user-preview">
+        <div
+          class="user-large-avatar"
+          id="userPreviewAvatar"
+        >
+          你
+        </div>
+      </div>
+
+      <form
+        class="form-list"
+        id="userForm"
+      >
+        <label>
+          显示名称
+          <input
+            name="displayName"
+            id="userDisplayName"
+            placeholder="你希望 char 怎么称呼你"
+          >
+        </label>
+
+        <label>
+          头像
+          <input
+            name="avatar"
+            id="userAvatarFile"
+            type="file"
+            accept="image/*"
+          >
+        </label>
+
+        <label>
+          user 资料
+          <textarea
+            name="profile"
+            id="userProfile"
+            rows="5"
+            placeholder="可以写你的身份、外貌、偏好等"
+          ></textarea>
+        </label>
+
+        <button
+          class="capsule-button primary"
+          type="submit"
+        >
+          保存面具
+        </button>
+      </form>
+    </article>
+  </div>
+
+  <!-- char 心声 -->
+  <div
+    class="modal-layer hidden"
+    id="charModal"
+  >
+    <article class="char-modal">
+      <button
+        class="modal-close"
+        id="closeCharModal"
+      >
+        ×
+      </button>
 
       <div class="char-modal-heading">
-        <div class="large-char-avatar" id="modalCharAvatar">?</div>
+        <div
+          class="large-char-avatar"
+          id="modalCharAvatar"
+        >
+          ?
+        </div>
 
         <div>
           <p class="eyebrow">CHAR PROFILE</p>
           <h2 id="modalCharName">未命名 char</h2>
-          <p class="muted-text" id="modalCharSubtitle">
+          <p
+            class="muted-text"
+            id="modalCharSubtitle"
+          >
             点击头像查看心声
           </p>
         </div>
@@ -126,11 +219,17 @@
       </section>
 
       <div class="modal-actions">
-        <button class="capsule-button primary" id="openCharChat">
+        <button
+          class="capsule-button primary"
+          id="openCharChat"
+        >
           打开聊天
         </button>
 
-        <button class="capsule-button secondary" id="openCharProfile">
+        <button
+          class="capsule-button secondary"
+          id="openCharProfile"
+        >
           查看档案
         </button>
       </div>
