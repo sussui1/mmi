@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 
 interface TopBarProps {
   title: string;
   canGoBack: boolean;
   onBack: () => void;
   onOpenProfile: () => void;
+  avatarUrl: string | null;
 }
 
 function BackIcon() {
@@ -49,21 +50,31 @@ function BatteryIcon() {
         stroke="currentColor"
         strokeWidth="1.8"
       />
+
       <path
         d="M21 10v4"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
       />
+
       <path d="M6 10h8v4H6Z" fill="currentColor" />
     </svg>
   );
 }
 
-function UserAvatar(): ReactNode {
+function DefaultAvatar() {
   return (
     <svg viewBox="0 0 48 48" aria-hidden="true">
-      <circle cx="24" cy="24" r="22" fill="url(#avatarGradient)" />
+      <defs>
+        <linearGradient id="top-avatar-gradient" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#75d9ff" />
+          <stop offset="1" stopColor="#6e75ff" />
+        </linearGradient>
+      </defs>
+
+      <circle cx="24" cy="24" r="22" fill="url(#top-avatar-gradient)" />
+
       <circle
         cx="24"
         cy="19"
@@ -72,6 +83,7 @@ function UserAvatar(): ReactNode {
         stroke="white"
         strokeWidth="3"
       />
+
       <path
         d="M12 38c2-7 6-10 12-10s10 3 12 10"
         fill="none"
@@ -79,13 +91,27 @@ function UserAvatar(): ReactNode {
         strokeWidth="3"
         strokeLinecap="round"
       />
-      <defs>
-        <linearGradient id="avatarGradient" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#75d9ff" />
-          <stop offset="1" stopColor="#6e75ff" />
-        </linearGradient>
-      </defs>
     </svg>
+  );
+}
+
+function UserAvatar({ avatarUrl }: { avatarUrl: string | null }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [avatarUrl]);
+
+  if (!avatarUrl || failed) {
+    return <DefaultAvatar />;
+  }
+
+  return (
+    <img
+      src={avatarUrl}
+      alt=""
+      onError={() => setFailed(true)}
+    />
   );
 }
 
@@ -94,18 +120,37 @@ export function TopBar({
   canGoBack,
   onBack,
   onOpenProfile,
+  avatarUrl,
 }: TopBarProps) {
-  const now = new Date();
-  const time = now.toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  const [time, setTime] = useState(() =>
+    new Date().toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
+  );
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setTime(
+        new Date().toLocaleTimeString("zh-CN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }),
+      );
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   return (
     <header className="top-area">
       <div className="status-bar">
         <span>{time}</span>
+
         <div className="status-icons">
           <SignalIcon />
           <span className="status-wifi">●</span>
@@ -132,7 +177,7 @@ export function TopBar({
           aria-label="打开 user 面具"
           onClick={onOpenProfile}
         >
-          <UserAvatar />
+          <UserAvatar avatarUrl={avatarUrl} />
         </button>
       </div>
     </header>
