@@ -5,55 +5,48 @@ import {
   getSetting,
   saveSetting,
   getCharacters,
-  createCharacter,
-  getOrCreateSession,
-  getMessagePage,
-  addMessage,
+  getWorldbookEntries,
+  saveWorldbookEntry,
   getApiPresets,
   saveApiPreset
 } from "./db.js";
 
-import {
-  buildChatMessages,
-  parseAssistantOutput
-} from "./prompt.js";
-
-import { collectChat } from "./llm.js";
-
 const app = {
   state: structuredClone(defaultState),
   chars: [],
+  worldbookEntries: [],
   apiPresets: [],
-  viewport: document.querySelector("#appViewport"),
-  title: document.querySelector("#pageTitle"),
-  backButton: document.querySelector("#backButton"),
-  modal: document.querySelector("#charModal"),
   routeStack: [],
-  editingDesktop: false,
-  touchDrag: null
+  homePage: 0,
+  startX: 0,
+  currentChatChar: null
 };
 
-const appInfo = {
-  messages: { icon: "◌", label: "消息", page: 0 },
-  worldbook: { icon: "✧", label: "世界书", page: 0 },
-  characters: { icon: "♢", label: "档案", page: 0 },
-  settings: { icon: "⚙", label: "设置", page: 0 },
-  appearance: { icon: "◈", label: "外观", page: 0 },
+const viewport = document.querySelector("#appViewport");
 
-  // 按照用户要求：群聊和相册换位
-  group: { icon: "◎", label: "群聊", page: 0 },
-  offline: { icon: "⌁", label: "线下", page: 0 },
-  gallery: { icon: "▧", label: "相册", page: 0 },
-
-  forum: { icon: "☷", label: "论坛", page: 1 },
-  "fan-extra": { icon: "✦", label: "番外", page: 1 },
-  tools: { icon: "◇", label: "工具", page: 1 },
-  shop: { icon: "♧", label: "商店", page: 1 },
-  backup: { icon: "↥", label: "备份", page: 1 }
-};
+const apps = [
+  { id: "messages", icon: "◌", label: "消息" },
+  { id: "worldbook", icon: "✧", label: "世界书" },
+  { id: "characters", icon: "♢", label: "档案" },
+  { id: "settings", icon: "⚙", label: "设置" },
+  { id: "appearance", icon: "◈", label: "外观" },
+  { id: "group", icon: "◎", label: "群聊" },
+  { id: "offline", icon: "⌁", label: "线下" },
+  { id: "gallery", icon: "▧", label: "相册" },
+  { id: "forum", icon: "☷", label: "论坛" },
+  { id: "fan-extra", icon: "✦", label: "番外" },
+  { id: "tools", icon: "◇", label: "工具" },
+  { id: "shop", icon: "♧", label: "商店" },
+  { id: "backup", icon: "↥", label: "备份" }
+];
 
 async function init() {
   await seedDatabase(defaultState);
+
+  app.state.user = await getSetting(
+    "user",
+    defaultState.user
+  );
 
   app.state.welcomeText = await getSetting(
     "welcomeText",
@@ -65,24 +58,20 @@ async function init() {
     defaultState.globalSettings
   );
 
-  app.state.desktopOrder = await getSetting(
-    "desktopOrder",
-    defaultState.desktopOrder
-  );
-
   app.state.assistant = await getSetting(
     "assistant",
     defaultState.assistant
   );
 
   app.chars = await getCharacters();
+  app.worldbookEntries = await getWorldbookEntries();
   app.apiPresets = await getApiPresets();
 
   bindGlobalEvents();
-  updateClock();
-  setInterval(updateClock, 30_000);
-
   renderRoute("home", false);
+  updateClock();
+
+  setInterval(updateClock, 30_000);
 }
 
 function bindGlobalEvents() {
@@ -94,24 +83,38 @@ function bindGlobalEvents() {
       });
     });
 
-  app.backButton.addEventListener("click", goBack);
+  document
+    .querySelector("#backButton")
+    .addEventListener("click", goBack);
+
+  document
+    .querySelector("#userAvatarButton")
+    .addEventListener("click", openUserModal);
+
+  document
+    .querySelector("#closeUserModal")
+    .addEventListener("click", closeUserModal);
 
   document
     .querySelector("#closeCharModal")
     .addEventListener("click", closeCharModal);
 
-  app.modal.addEventListener("click", event => {
-    if (event.target === app.modal) {
-      closeCharModal();
-    }
-  });
+  document
+    .querySelector("#userForm")
+    .addEventListener("submit", saveUserProfile);
+
+  document
+    .querySelector("#userAvatarFile")
+    .addEventListener("change", previewUserAvatar);
 
   document
     .querySelector("#openCharChat")
     .addEventListener("click", () => {
-      const charId = app.modal.dataset.charId;
+      const charId =
+        document.querySelector("#charModal").dataset.charId;
+
       closeCharModal();
-      openChat(charId);
+      renderChat(charId);
     });
 
   document
@@ -127,97 +130,85 @@ function bindGlobalEvents() {
       renderRoute(app.routeStack.at(-1), false);
     }
   });
-
-  window.addEventListener("online", updateNetworkStatus);
-  window.addEventListener("offline", updateNetworkStatus);
-
-  updateNetworkStatus();
 }
 
 function updateClock() {
-  const now = new Date();
-
   document.querySelector("#statusTime").textContent =
-    now.toLocaleTimeString("zh-CN", {
+    new Date().toLocaleTimeString("zh-CN", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false
     });
 }
 
-function updateNetworkStatus() {
-  const element = document.querySelector("#networkStatus");
-
-  if (!element) return;
-
-  element.textContent = navigator.onLine ? "●" : "○";
-  element.title = navigator.onLine ? "已联网" : "离线";
-}
-
-function setTitle(title) {
-  app.title.textContent = title;
-}
-
 function renderRoute(route, push = true) {
-  if (push) {
-    if (app.routeStack.at(-1) !== route) {
-      app.routeStack.push(route);
-    }
-
+  if (push && app.routeStack.at(-1) !== route) {
+    app.routeStack.push(route);
     history.pushState({ route }, "", `#${route}`);
-  } else if (!app.routeStack.length) {
+  }
+
+  if (!app.routeStack.length) {
     app.routeStack.push(route);
   }
 
   const renderers = {
     home: renderHome,
     messages: renderMessages,
-    gallery: renderGallery,
-    settings: renderSettings,
-    worldbook: () => renderPlaceholder(
-      "世界书",
-      "WORLD BOOK",
-      "管理常驻设定和关键词触发条目。"
-    ),
-    characters: renderCharacters,
-    appearance: renderAppearance,
-    offline: () => renderPlaceholder(
-      "线下",
-      "OFFLINE",
-      "创建面对面场景和叙事互动。"
-    ),
     group: () => renderPlaceholder(
       "群聊",
       "GROUP CHAT",
-      "让多个 char 进入同一会话。"
+      "群聊会在这里显示。"
+    ),
+    worldbook: renderWorldbook,
+    settings: renderSettings,
+    characters: renderCharacters,
+    appearance: () => renderPlaceholder(
+      "外观",
+      "APPEARANCE",
+      "壁纸、图标和胶囊样式设置。"
+    ),
+    gallery: () => renderPlaceholder(
+      "相册",
+      "IMAGE STUDIO",
+      "NovelAI 和 OpenAI Images 生图结果会保存在这里。"
+    ),
+    offline: () => renderPlaceholder(
+      "线下",
+      "OFFLINE",
+      "创建面对面互动场景。"
     ),
     forum: () => renderPlaceholder(
       "论坛",
       "FORUM",
-      "角色和 NPC 在这里发帖、评论与互动。"
+      "论坛和 NPC 功能。"
     ),
     "fan-extra": () => renderPlaceholder(
       "番外",
       "EXTRA STORIES",
-      "选择人物、事件、记忆、视角和文风生成番外。"
+      "根据你选择的要求生成番外。"
     ),
     tools: renderTools,
     shop: () => renderPlaceholder(
       "商店",
       "SHOP",
-      "礼物、订单、钱包和关系事件。"
+      "礼物、订单和钱包功能。"
     ),
     backup: () => renderPlaceholder(
       "备份",
-      "DATA",
-      "导入酒馆卡、世界书和分片备份。"
+      "BACKUP",
+      "酒馆卡、世界书和完整数据备份。"
     )
   };
 
   const render = renderers[route] || renderHome;
   render();
 
-  updateBackButton();
+  document
+    .querySelector("#backButton")
+    .classList.toggle(
+      "hidden",
+      route === "home" || app.routeStack.length <= 1
+    );
 }
 
 function goBack() {
@@ -230,108 +221,86 @@ function goBack() {
   history.back();
 }
 
-function updateBackButton() {
-  app.backButton.classList.toggle(
-    "hidden",
-    app.routeStack.length <= 1 || app.state.route === "home"
-  );
+function setTitle(title) {
+  document.querySelector("#pageTitle").textContent = title;
 }
 
-function setRouteState(route) {
-  app.state.route = route;
-
-  document.querySelectorAll(".nav-button").forEach(button => {
-    button.classList.toggle(
-      "active",
-      button.dataset.route === route
-    );
-  });
+function setActiveNav(route) {
+  document
+    .querySelectorAll(".nav-button")
+    .forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.route === route
+      );
+    });
 }
 
 function renderHome() {
-  setRouteState("home");
   setTitle("mmi机");
+  setActiveNav("");
 
-  const order = app.state.desktopOrder
-    .map(id => ({ id, ...appInfo[id] }))
-    .filter(item => item.label);
+  const pageOne = apps.slice(0, 8);
+  const pageTwo = apps.slice(8);
 
-  const pageItems = order.filter(
-    item => item.page === app.state.homePage
-  );
-
-  const frequentlyUsed = pageItems.filter(item => item.page === 0);
-  const rarelyUsed = pageItems.filter(item => item.page === 1);
-
-  app.viewport.innerHTML = `
+  viewport.innerHTML = `
     <section class="welcome-card glass-card">
-      <p
-        class="eyebrow editable-text"
-        contenteditable="true"
-        data-welcome-key="eyebrow"
-      >${escapeHtml(app.state.welcomeText.eyebrow)}</p>
+      <p class="eyebrow">${escapeHtml(
+        app.state.welcomeText.eyebrow
+      )}</p>
 
-      <h2
-        class="editable-text"
-        contenteditable="true"
-        data-welcome-key="title"
-      >${escapeHtml(app.state.welcomeText.title)}</h2>
+      <h2>${escapeHtml(
+        app.state.welcomeText.title
+      )}</h2>
 
-      <p
-        class="editable-text"
-        contenteditable="true"
-        data-welcome-key="description"
-      >${escapeHtml(app.state.welcomeText.description)}</p>
-
-      <button class="edit-card-button" id="saveWelcomeText">
-        保存文字
-      </button>
+      <p>${escapeHtml(
+        app.state.welcomeText.description
+      )}</p>
     </section>
 
-    <div class="page-indicator">
-      <button class="page-arrow" id="previousPage">‹</button>
-      <span>${app.state.homePage + 1} / 2</span>
-      <button class="page-arrow" id="nextPage">›</button>
+    <section
+      class="home-pager"
+      id="homePager"
+    >
+      <div
+        class="home-track"
+        id="homeTrack"
+      >
+        <div class="home-page">
+          <div class="page-label">常用应用</div>
+          <div class="app-grid">
+            ${pageOne.map(renderApp).join("")}
+          </div>
+
+          ${renderIncomingMessages()}
+          ${renderCharPreview()}
+        </div>
+
+        <div class="home-page">
+          <div class="page-label">更多功能</div>
+          <div class="app-grid">
+            ${pageTwo.map(renderApp).join("")}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="swipe-hint">
+      <span class="page-dot active" data-page-dot="0"></span>
+      <span class="page-dot" data-page-dot="1"></span>
+      <span>左右滑动翻页</span>
     </div>
-
-    <div class="section-heading">
-      <h3>
-        ${app.state.homePage === 0 ? "常用应用" : "更多功能"}
-      </h3>
-
-      <button class="text-button" id="toggleArrange">
-        ${app.editingDesktop ? "完成" : "整理"}
-      </button>
-    </div>
-
-    <div class="app-grid ${app.editingDesktop ? "arranging" : ""}">
-      ${pageItems.map(renderAppItem).join("")}
-    </div>
-
-    ${
-      app.state.homePage === 0
-        ? renderIncomingMessages()
-        : ""
-    }
-
-    ${
-      app.state.homePage === 0
-        ? renderCharactersPreview()
-        : ""
-    }
   `;
 
   bindHomeEvents();
+  updatePagerPosition();
 }
 
-function renderAppItem(item) {
+function renderApp(item) {
   return `
     <button
       class="app-item"
       data-open-app="${item.id}"
-      data-app-id="${item.id}"
-      draggable="${app.editingDesktop}"
-      aria-label="${item.label}"
     >
       <span class="app-icon">${item.icon}</span>
       <span class="app-label">${item.label}</span>
@@ -347,9 +316,9 @@ function renderIncomingMessages() {
   if (!incoming.length) return "";
 
   return `
-    <div class="section-heading incoming-heading">
+    <div class="section-heading">
       <h3>来自 char 的消息</h3>
-      <span>主动来信由你控制</span>
+      <span>主动来信已开启</span>
     </div>
 
     <div class="incoming-list">
@@ -358,9 +327,7 @@ function renderIncomingMessages() {
           class="incoming-card glass-card"
           data-char-id="${char.id}"
         >
-          <span class="char-avatar">
-            ${escapeHtml(char.avatarText)}
-          </span>
+          ${renderAvatar(char)}
 
           <span class="char-main">
             <h3>${escapeHtml(char.name)}</h3>
@@ -376,13 +343,17 @@ function renderIncomingMessages() {
   `;
 }
 
-function renderCharactersPreview() {
+function renderCharPreview() {
   if (!app.chars.length && !app.state.assistant.enabled) {
     return `
       <section class="empty-home-card glass-card">
-        <span class="empty-icon">♢</span>
+        <div class="empty-icon">♢</div>
         <p>还没有 char</p>
-        <button class="capsule-button primary" id="createFirstChar">
+
+        <button
+          class="capsule-button primary"
+          id="createFirstChar"
+        >
           创建 char
         </button>
       </section>
@@ -397,78 +368,54 @@ function renderCharactersPreview() {
 
     <div class="char-preview-list">
       ${app.chars.map(renderCharCard).join("")}
-      ${app.state.assistant.enabled
-        ? renderAssistantCard()
-        : ""}
     </div>
-  `;
-}
-
-function renderAssistantCard() {
-  const assistant = app.state.assistant;
-
-  return `
-    <button class="char-card glass-card" data-assistant-card>
-      <span class="char-avatar">${assistant.avatarText}</span>
-      <span class="char-main">
-        <h3>${escapeHtml(assistant.name)}</h3>
-        <p>${escapeHtml(assistant.thoughts)}</p>
-      </span>
-      <span class="char-arrow">›</span>
-    </button>
   `;
 }
 
 function renderCharCard(char) {
   return `
-    <button class="char-card glass-card" data-char-id="${char.id}">
-      <span class="char-avatar">${escapeHtml(char.avatarText)}</span>
+    <button
+      class="char-card glass-card"
+      data-char-id="${char.id}"
+    >
+      ${renderAvatar(char)}
+
       <span class="char-main">
         <h3>${escapeHtml(char.name)}</h3>
-        <p>${escapeHtml(char.thoughts || "暂无心声记录。")}</p>
+        <p>${escapeHtml(
+          char.thoughts || "暂无心声记录。"
+        )}</p>
       </span>
+
       <span class="char-arrow">›</span>
     </button>
   `;
 }
 
+function renderAvatar(char) {
+  if (char.avatarDataUrl) {
+    return `
+      <span class="char-avatar image-avatar">
+        <img
+          src="${char.avatarDataUrl}"
+          alt="${escapeAttr(char.name)}"
+        >
+      </span>
+    `;
+  }
+
+  return `
+    <span class="char-avatar">
+      ${escapeHtml(char.avatarText || "?")}
+    </span>
+  `;
+}
+
 function bindHomeEvents() {
-  document
-    .querySelector("#previousPage")
-    .addEventListener("click", () => {
-      app.state.homePage = 0;
-      renderHome();
-    });
-
-  document
-    .querySelector("#nextPage")
-    .addEventListener("click", () => {
-      app.state.homePage = 1;
-      renderHome();
-    });
-
-  document
-    .querySelector("#toggleArrange")
-    .addEventListener("click", () => {
-      app.editingDesktop = !app.editingDesktop;
-      renderHome();
-    });
-
-  document
-    .querySelector("#saveWelcomeText")
-    .addEventListener("click", saveWelcomeText);
-
-  document
-    .querySelector("#createFirstChar")
-    ?.addEventListener("click", () => {
-      renderRoute("characters");
-    });
-
   document
     .querySelectorAll("[data-open-app]")
     .forEach(button => {
       button.addEventListener("click", () => {
-        if (app.editingDesktop) return;
         renderRoute(button.dataset.openApp);
       });
     });
@@ -486,95 +433,196 @@ function bindHomeEvents() {
     });
 
   document
-    .querySelector("[data-assistant-card]")
+    .querySelector("#createFirstChar")
     ?.addEventListener("click", () => {
-      openAssistantModal();
+      renderRoute("characters");
     });
 
-  bindDragEvents();
-}
+  const pager = document.querySelector("#homePager");
 
-async function saveWelcomeText() {
-  const next = { ...app.state.welcomeText };
+  pager.addEventListener("pointerdown", event => {
+    app.startX = event.clientX;
+    pager.setPointerCapture?.(event.pointerId);
+  });
 
-  document
-    .querySelectorAll("[data-welcome-key]")
-    .forEach(element => {
-      next[element.dataset.welcomeKey] =
-        element.textContent.trim();
-    });
+  pager.addEventListener("pointerup", event => {
+    const distance = event.clientX - app.startX;
 
-  app.state.welcomeText = next;
-  await saveSetting("welcomeText", next);
+    if (Math.abs(distance) < 55) return;
 
-  const button = document.querySelector("#saveWelcomeText");
-  button.textContent = "已保存";
+    if (distance < 0) {
+      app.homePage = 1;
+    } else {
+      app.homePage = 0;
+    }
 
-  setTimeout(() => {
-    if (button) button.textContent = "保存文字";
-  }, 1200);
-}
-
-function bindDragEvents() {
-  const items = document.querySelectorAll("[data-app-id]");
-
-  items.forEach(item => {
-    item.addEventListener("dragstart", event => {
-      event.dataTransfer.setData(
-        "text/plain",
-        item.dataset.appId
-      );
-    });
-
-    item.addEventListener("dragover", event => {
-      if (app.editingDesktop) event.preventDefault();
-    });
-
-    item.addEventListener("drop", async event => {
-      event.preventDefault();
-
-      const sourceId =
-        event.dataTransfer.getData("text/plain");
-
-      const targetId = item.dataset.appId;
-
-      if (!sourceId || sourceId === targetId) return;
-
-      const order = [...app.state.desktopOrder];
-      const sourceIndex = order.indexOf(sourceId);
-      const targetIndex = order.indexOf(targetId);
-
-      if (sourceIndex < 0 || targetIndex < 0) return;
-
-      order.splice(sourceIndex, 1);
-      order.splice(targetIndex, 0, sourceId);
-
-      // 页码归属仍由 appInfo 控制
-      app.state.desktopOrder = order;
-      await saveSetting("desktopOrder", order);
-
-      renderHome();
-    });
+    updatePagerPosition();
   });
 }
 
+function updatePagerPosition() {
+  const track = document.querySelector("#homeTrack");
+
+  if (!track) return;
+
+  track.style.transform =
+    `translate3d(-${app.homePage * 50}%, 0, 0)`;
+
+  document
+    .querySelectorAll("[data-page-dot]")
+    .forEach(dot => {
+      dot.classList.toggle(
+        "active",
+        Number(dot.dataset.pageDot) === app.homePage
+      );
+    });
+}
+
+function openCharModal(char) {
+  const modal = document.querySelector("#charModal");
+
+  modal.dataset.charId = char.id;
+
+  document.querySelector("#modalCharAvatar").textContent =
+    char.avatarText || "?";
+
+  document.querySelector("#modalCharName").textContent =
+    char.name;
+
+  document.querySelector("#modalCharSubtitle").textContent =
+    char.subtitle || "你的 char";
+
+  document.querySelector("#modalMood").textContent =
+    char.mood || "未知";
+
+  document.querySelector("#modalAffection").textContent =
+    char.affection || 0;
+
+  document.querySelector("#modalThoughts").textContent =
+    char.thoughts || "暂无心声记录。";
+
+  modal.classList.remove("hidden");
+}
+
+function closeCharModal() {
+  document
+    .querySelector("#charModal")
+    .classList.add("hidden");
+}
+
+function openUserModal() {
+  const user = app.state.user;
+
+  document.querySelector("#userDisplayName").value =
+    user.displayName || "";
+
+  document.querySelector("#userProfile").value =
+    user.profile || "";
+
+  const preview = document.querySelector("#userPreviewAvatar");
+
+  if (user.avatarDataUrl) {
+    preview.innerHTML = `
+      <img
+        src="${user.avatarDataUrl}"
+        alt="user头像"
+      >
+    `;
+  } else {
+    preview.textContent = "你";
+  }
+
+  document
+    .querySelector("#userModal")
+    .classList.remove("hidden");
+}
+
+function closeUserModal() {
+  document
+    .querySelector("#userModal")
+    .classList.add("hidden");
+}
+
+function previewUserAvatar(event) {
+  const file = event.target.files[0];
+
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    document.querySelector("#userPreviewAvatar").innerHTML = `
+      <img
+        src="${reader.result}"
+        alt="头像预览"
+      >
+    `;
+
+    document.querySelector("#userPreviewAvatar")
+      .dataset.pendingAvatar = reader.result;
+  };
+
+  reader.readAsDataURL(file);
+}
+
+async function saveUserProfile(event) {
+  event.preventDefault();
+
+  const form = new FormData(event.currentTarget);
+  const preview = document.querySelector("#userPreviewAvatar");
+
+  const user = {
+    displayName: form.get("displayName") || "",
+    profile: form.get("profile") || "",
+    avatarDataUrl:
+      preview.dataset.pendingAvatar ||
+      app.state.user.avatarDataUrl ||
+      ""
+  };
+
+  app.state.user = user;
+  await saveSetting("user", user);
+
+  const headerImage =
+    document.querySelector("#userAvatarImage");
+
+  const headerText =
+    document.querySelector("#userAvatarText");
+
+  if (user.avatarDataUrl) {
+    headerImage.src = user.avatarDataUrl;
+    headerImage.classList.add("visible");
+    headerText.classList.add("hidden");
+  } else {
+    headerImage.classList.remove("visible");
+    headerText.textContent = "你";
+    headerText.classList.remove("hidden");
+  }
+
+  closeUserModal();
+}
+
 function renderMessages() {
-  setRouteState("messages");
   setTitle("消息");
+  setActiveNav("messages");
 
   if (!app.chars.length) {
-    app.viewport.innerHTML = `
+    viewport.innerHTML = `
       <section class="empty-state glass-card">
         <div class="empty-icon">◌</div>
         <p>还没有会话</p>
-        <button class="capsule-button primary" id="goCreateChar">
-          创建 char
+
+        <button
+          class="capsule-button primary"
+          id="goCharacters"
+        >
+          创建或导入 char
         </button>
       </section>
     `;
 
     document
-      .querySelector("#goCreateChar")
+      .querySelector("#goCharacters")
       .addEventListener("click", () => {
         renderRoute("characters");
       });
@@ -582,7 +630,7 @@ function renderMessages() {
     return;
   }
 
-  app.viewport.innerHTML = `
+  viewport.innerHTML = `
     <section class="page-card glass-card">
       <p class="eyebrow">MESSAGES</p>
       <h2>消息</h2>
@@ -596,10 +644,6 @@ function renderMessages() {
     </div>
   `;
 
-  bindCharCards();
-}
-
-function bindCharCards() {
   document
     .querySelectorAll("[data-char-id]")
     .forEach(button => {
@@ -608,631 +652,320 @@ function bindCharCards() {
           item => item.id === button.dataset.charId
         );
 
-        if (char) openCharModal(char);
+        if (char) renderChat(char.id);
       });
     });
 }
 
-function openCharModal(char) {
-  app.modal.dataset.charId = char.id;
-
-  document.querySelector("#modalCharAvatar").textContent =
-    char.avatarText;
-
-  document.querySelector("#modalCharName").textContent =
-    char.name;
-
-  document.querySelector("#modalCharSubtitle").textContent =
-    char.subtitle || "你的 char";
-
-  document.querySelector("#modalMood").textContent =
-    char.mood || "未知";
-
-  document.querySelector("#modalAffection").textContent =
-    char.affection ?? 0;
-
-  document.querySelector("#modalThoughts").textContent =
-    char.thoughts || "暂无心声记录。";
-
-  app.modal.classList.remove("hidden");
-}
-
-function openAssistantModal() {
-  const assistant = app.state.assistant;
-
-  app.modal.dataset.charId = "";
-
-  document.querySelector("#modalCharAvatar").textContent =
-    assistant.avatarText;
-
-  document.querySelector("#modalCharName").textContent =
-    assistant.name;
-
-  document.querySelector("#modalCharSubtitle").textContent =
-    "mmi机本地助手";
-
-  document.querySelector("#modalMood").textContent =
-    assistant.mood;
-
-  document.querySelector("#modalAffection").textContent =
-    assistant.affection;
-
-  document.querySelector("#modalThoughts").textContent =
-    assistant.thoughts;
-
-  app.modal.classList.remove("hidden");
-}
-
-function closeCharModal() {
-  app.modal.classList.add("hidden");
-}
-
-async function openChat(charId) {
-  const char = app.chars.find(item => item.id === charId);
-
-  if (!char) return;
-
-  renderRoute("chat", true);
-
-  setTitle(char.name);
-
-  const session = await getOrCreateSession(char.id);
-  const messages = await getMessagePage(session.id, 0, 50);
-
-  app.viewport.innerHTML = `
-    <section class="chat-page">
-      <div class="chat-top-card glass-card">
-        <button class="chat-avatar-button" id="chatCharAvatar">
-          ${escapeHtml(char.avatarText)}
-        </button>
-
-        <div>
-          <p class="eyebrow">CHAT</p>
-          <h2>${escapeHtml(char.name)}</h2>
-          <span class="muted-text">
-            ${escapeHtml(char.subtitle || "")}
-          </span>
-        </div>
-      </div>
-
-      <div class="message-list" id="messageList">
-        ${
-          messages.reverse().map(renderMessage).join("")
-          || `<p class="empty-chat">还没有消息</p>`
-        }
-      </div>
-
-      <form class="chat-composer" id="chatComposer">
-        <textarea
-          id="chatInput"
-          rows="1"
-          placeholder="输入消息"
-          required
-        ></textarea>
-
-        <button class="send-button" type="submit">↑</button>
-      </form>
-    </section>
-  `;
-
-  document
-    .querySelector("#chatCharAvatar")
-    .addEventListener("click", () => {
-      openCharModal(char);
-    });
-
-  document
-    .querySelector("#chatComposer")
-    .addEventListener("submit", async event => {
-      event.preventDefault();
-
-      const input = document.querySelector("#chatInput");
-      const text = input.value.trim();
-
-      if (!text) return;
-
-      input.value = "";
-      await sendChatMessage(char, session, text);
-    });
-}
-
-function renderMessage(message) {
-  const own = message.senderType === "user";
-
-  return `
-    <div class="message-row ${own ? "own" : "other"}">
-      <div class="message-bubble">
-        ${escapeHtml(message.content)}
-      </div>
-    </div>
-  `;
-}
-
-async function sendChatMessage(char, session, userText) {
-  const list = document.querySelector("#messageList");
-
-  const userMessage = await addMessage({
-    sessionId: session.id,
-    senderType: "user",
-    senderId: "user",
-    content: userText
-  });
-
-  list.insertAdjacentHTML(
-    "beforeend",
-    renderMessage(userMessage)
-  );
-
-  const typing = document.createElement("p");
-  typing.className = "typing-indicator";
-  typing.textContent = "正在输入……";
-  list.append(typing);
-
-  const recent = await getMessagePage(
-    session.id,
-    0,
-    app.state.globalSettings.contextRounds * 2
-  );
-
-  const preset =
-    app.apiPresets.find(item => item.kind === "chat")
-    || app.apiPresets[0];
-
-  if (!preset) {
-    typing.remove();
-
-    showInlineError(
-      "未配置聊天 API",
-      "去设置",
-      () => renderRoute("settings")
-    );
-
-    return;
-  }
-
-  const built = buildChatMessages({
-    char,
-    recentMessages: recent.reverse(),
-    userText,
-    globalSettings: app.state.globalSettings
-  });
-
-  try {
-    let streamed = "";
-
-    const reply = await collectChat(
-      preset,
-      built.messages,
-      {},
-      (_delta, fullText) => {
-        streamed = fullText;
-        typing.textContent = streamed || "正在输入……";
-      }
-    );
-
-    typing.remove();
-
-    const parsed = parseAssistantOutput(reply);
-
-    for (const part of parsed.parts) {
-      const assistantMessage = await addMessage({
-        sessionId: session.id,
-        senderType: "char",
-        senderId: char.id,
-        content: part
-      });
-
-      list.insertAdjacentHTML(
-        "beforeend",
-        renderMessage(assistantMessage)
-      );
-
-      await wait(180 + Math.random() * 360);
-    }
-
-    if (parsed.status) {
-      await applyStatus(char, parsed.status);
-    }
-
-    list.scrollTop = list.scrollHeight;
-  } catch (error) {
-    typing.remove();
-
-    showInlineError(
-      error.message,
-      "去设置",
-      () => renderRoute("settings")
-    );
-  }
-}
-
-async function applyStatus(char, status) {
-  const index = app.chars.findIndex(
-    item => item.id === char.id
-  );
-
-  if (index < 0) return;
-
-  const current = app.chars[index];
-
-  current.affection = Math.max(
-    0,
-    Math.min(
-      100,
-      Number(current.affection || 0) +
-        Number(status.affection || 0)
-    )
-  );
-
-  if (status.mood) current.mood = status.mood;
-  if (status.attire) current.attire = status.attire;
-  if (status.event) current.latestEvent = status.event;
-
-  current.thoughts =
-    status.thoughts ||
-    current.thoughts ||
-    "暂无心声记录。";
-
-  current.updatedAt = Date.now();
-
-  await createCharacter(current);
-  app.chars = await getCharacters();
-}
-
-function renderCharacters() {
-  setRouteState("characters");
-  setTitle("档案");
-
-  app.viewport.innerHTML = `
+function renderWorldbook() {
+  setTitle("世界书");
+  setActiveNav("worldbook");
+
+  viewport.innerHTML = `
     <section class="page-card glass-card">
-      <p class="eyebrow">CHAR ARCHIVE</p>
-      <h2>档案</h2>
-      <p class="muted-text">
-        这里不会预置普通 char。
-      </p>
+      <p class="eyebrow">WORLD BOOK</p>
+      <h2>世界书</h2>
 
       <div class="button-row">
-        <button class="capsule-button primary" id="createCharButton">
-          ＋ 创建 char
+        <button
+          class="capsule-button primary"
+          id="createWorldbook"
+        >
+          ＋ 创建条目
         </button>
 
-        <button class="capsule-button secondary" id="importCharButton">
-          导入酒馆卡
+        <button
+          class="capsule-button secondary"
+          id="importWorldbook"
+        >
+          导入
         </button>
+
+        <input
+          id="worldbookFile"
+          type="file"
+          accept=".json,.txt"
+          hidden
+        >
       </div>
-
-      <input
-        id="charFileInput"
-        type="file"
-        accept=".json,.png,.txt"
-        hidden
-      >
     </section>
 
+    <div class="section-heading">
+      <h3>条目</h3>
+      <span>${app.worldbookEntries.length} 条</span>
+    </div>
+
     ${
-      app.chars.length
-        ? app.chars.map(renderProfileCard).join("")
+      app.worldbookEntries.length
+        ? app.worldbookEntries
+          .map(renderWorldbookCard)
+          .join("")
         : `
           <section class="empty-state">
-            <div class="empty-icon">♢</div>
-            <p>还没有 char</p>
+            <div class="empty-icon">✧</div>
+            <p>还没有世界书条目</p>
           </section>
         `
     }
   `;
 
   document
-    .querySelector("#createCharButton")
-    .addEventListener("click", showCreateCharForm);
+    .querySelector("#createWorldbook")
+    .addEventListener("click", showWorldbookForm);
 
   document
-    .querySelector("#importCharButton")
+    .querySelector("#importWorldbook")
     .addEventListener("click", () => {
-      document.querySelector("#charFileInput").click();
+      document.querySelector("#worldbookFile").click();
     });
 
   document
-    .querySelector("#charFileInput")
-    .addEventListener("change", importCharFile);
-
-  document
-    .querySelectorAll("[data-profile-char]")
-    .forEach(button => {
-      button.addEventListener("click", () => {
-        const char = app.chars.find(
-          item => item.id === button.dataset.profileChar
-        );
-
-        if (char) openCharModal(char);
-      });
-    });
+    .querySelector("#worldbookFile")
+    .addEventListener("change", importWorldbook);
 }
 
-function renderProfileCard(char) {
+function renderWorldbookCard(entry) {
   return `
-    <button
-      class="char-card glass-card"
-      data-profile-char="${char.id}"
-    >
-      <span class="char-avatar">${escapeHtml(char.avatarText)}</span>
+    <article class="worldbook-card glass-card">
+      <div>
+        <h3>${escapeHtml(entry.title)}</h3>
+        <p>${escapeHtml(entry.content)}</p>
+      </div>
 
-      <span class="char-main">
-        <h3>${escapeHtml(char.name)}</h3>
-        <p>${escapeHtml(char.profile || "暂无人设")}</p>
+      <span class="capsule">
+        ${entry.enabled ? "启用" : "停用"}
       </span>
-
-      <span class="char-arrow">›</span>
-    </button>
+    </article>
   `;
 }
 
-function showCreateCharForm() {
-  app.viewport.innerHTML = `
+function showWorldbookForm() {
+  viewport.innerHTML = `
     <section class="page-card glass-card">
-      <p class="eyebrow">NEW CHAR</p>
-      <h2>创建 char</h2>
+      <p class="eyebrow">NEW ENTRY</p>
+      <h2>创建世界书条目</h2>
 
-      <form class="form-list" id="charForm">
+      <form
+        class="form-list"
+        id="worldbookForm"
+      >
         <label>
-          名称
-          <input name="name" placeholder="例如：某某" required>
+          标题
+          <input
+            name="title"
+            required
+            placeholder="例如：城市设定"
+          >
         </label>
 
         <label>
-          头像文字
-          <input name="avatarText" maxlength="2" placeholder="可填一个字">
+          关键词
+          <input
+            name="keywords"
+            placeholder="用逗号分隔"
+          >
         </label>
 
         <label>
-          简介
-          <input name="subtitle" placeholder="一句话介绍">
-        </label>
-
-        <label>
-          完整人设
+          条目内容
           <textarea
-            name="profile"
-            rows="8"
+            name="content"
+            rows="10"
             placeholder="完整输入，不会自动截断"
+            required
           ></textarea>
         </label>
 
-        <label>
-          外貌描述
-          <textarea name="appearance" rows="4"></textarea>
-        </label>
-
-        <label>
-          说话方式
-          <textarea name="speechStyle" rows="4"></textarea>
-        </label>
-
-        <label>
-          最少输出条数
+        <label class="check-row">
           <input
-            name="minMessages"
-            type="number"
-            min="1"
-            max="20"
-            value="1"
+            type="checkbox"
+            name="constant"
           >
+          常驻注入
         </label>
 
-        <label>
-          最多输出条数
-          <input
-            name="maxMessages"
-            type="number"
-            min="1"
-            max="20"
-            value="4"
-          >
-        </label>
-
-        <label>
-          线上叙事
-          <select name="narrative">
-            <option value="dialogue">纯对话</option>
-            <option value="light">对话 + 轻动作</option>
-            <option value="strong">强叙事</option>
-          </select>
-        </label>
-
-        <button class="capsule-button primary" type="submit">
-          保存 char
+        <button
+          class="capsule-button primary"
+          type="submit"
+        >
+          保存条目
         </button>
       </form>
     </section>
   `;
 
   document
-    .querySelector("#charForm")
+    .querySelector("#worldbookForm")
     .addEventListener("submit", async event => {
       event.preventDefault();
 
       const form = new FormData(event.currentTarget);
 
-      await createCharacter({
-        name: form.get("name"),
-        avatarText: form.get("avatarText"),
-        subtitle: form.get("subtitle"),
-        profile: form.get("profile"),
-        appearance: form.get("appearance"),
-        speechStyle: form.get("speechStyle"),
-
-        replyStyle: {
-          minMessages: Number(form.get("minMessages")),
-          maxMessages: Number(form.get("maxMessages")),
-          length: "character",
-          narrative: form.get("narrative")
-        }
+      await saveWorldbookEntry({
+        title: form.get("title"),
+        content: form.get("content"),
+        keywords: String(form.get("keywords") || "")
+          .split(",")
+          .map(item => item.trim())
+          .filter(Boolean),
+        constant: form.get("constant") === "on"
       });
 
-      app.chars = await getCharacters();
-      renderCharacters();
+      app.worldbookEntries = await getWorldbookEntries();
+      renderWorldbook();
     });
 }
 
-async function importCharFile(event) {
+async function importWorldbook(event) {
   const file = event.target.files[0];
 
   if (!file) return;
 
-  try {
-    const imported = await parseCharacterFile(file);
+  const text = await file.text();
+  let entries = [];
 
-    const confirmed = confirm(
-      `导入角色「${imported.name || "未命名 char"}」？`
-    );
-
-    if (!confirmed) return;
-
-    await createCharacter(imported);
-    app.chars = await getCharacters();
-    renderCharacters();
-  } catch (error) {
-    showInlineError(error.message, "返回档案", renderCharacters);
-  }
-}
-
-async function parseCharacterFile(file) {
-  const extension = file.name
-    .split(".")
-    .pop()
-    .toLowerCase();
-
-  if (extension === "json") {
-    const text = await file.text();
+  if (file.name.toLowerCase().endsWith(".json")) {
     const data = JSON.parse(text);
-
-    const card = data.data || data;
-
-    return {
-      name: card.name || card.char_name || "未命名 char",
-      avatarText: String(
-        card.name || "?"
-      ).slice(0, 1),
-      subtitle: card.description
-        ? String(card.description).slice(0, 80)
-        : "",
-      profile: [
-        card.description,
-        card.personality,
-        card.scenario,
-        card.first_mes,
-        card.mes_example
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-      appearance: card.appearance || "",
-      speechStyle: card.style || card.system_prompt || ""
-    };
+    entries = Array.isArray(data)
+      ? data
+      : data.entries || [];
+  } else {
+    entries = [{
+      title: file.name.replace(/\.txt$/i, ""),
+      content: text,
+      keywords: [],
+      constant: false
+    }];
   }
 
-  if (extension === "txt") {
-    const text = await readTextWithFallback(file);
-
-    return {
-      name: file.name.replace(/\.txt$/i, ""),
-      avatarText: "?",
-      profile: text
-    };
+  for (const entry of entries) {
+    await saveWorldbookEntry({
+      title: entry.title || entry.name,
+      content: entry.content || entry.text || "",
+      keywords: entry.keywords || [],
+      constant: entry.constant || false
+    });
   }
 
-  if (extension === "png") {
-    throw new Error(
-      "PNG 角色卡解析将在下一批接入；当前可先导出为 JSON 导入。"
-    );
-  }
-
-  throw new Error("暂不支持这种文件格式");
-}
-
-async function readTextWithFallback(file) {
-  const buffer = await file.arrayBuffer();
-
-  const utf8 = new TextDecoder("utf-8").decode(buffer);
-
-  if (!utf8.includes("�")) {
-    return utf8;
-  }
-
-  return new TextDecoder("gb18030").decode(buffer);
+  app.worldbookEntries = await getWorldbookEntries();
+  renderWorldbook();
 }
 
 function renderSettings() {
-  setRouteState("settings");
   setTitle("设置");
+  setActiveNav("settings");
 
-  const settings = app.state.globalSettings;
-  const chatPreset =
-    app.apiPresets.find(item => item.kind === "chat");
+  const chatApi = app.apiPresets.find(
+    item => item.kind === "chat"
+  );
 
-  app.viewport.innerHTML = `
+  const subApi = app.apiPresets.find(
+    item => item.kind === "sub"
+  );
+
+  viewport.innerHTML = `
     <section class="page-card glass-card">
       <p class="eyebrow">SETTINGS</p>
       <h2>设置</h2>
+
+      <div class="settings-section-title">
+        API 接口
+      </div>
+
+      <div class="setting-list">
+        <button
+          class="setting-item clickable"
+          id="openChatApi"
+        >
+          <span>
+            <strong>聊天 API</strong>
+            <small>${chatApi
+              ? escapeHtml(chatApi.name)
+              : "未配置"}</small>
+          </span>
+          <span>›</span>
+        </button>
+
+        <button
+          class="setting-item clickable"
+          id="openSubApi"
+        >
+          <span>
+            <strong>副 API</strong>
+            <small>${subApi
+              ? escapeHtml(subApi.name)
+              : "负责总结、论坛、番外等"}</small>
+          </span>
+          <span>›</span>
+        </button>
+
+        <button
+          class="setting-item clickable"
+          id="openImageApi"
+        >
+          <span>
+            <strong>生图 API</strong>
+            <small>NovelAI / OpenAI Images</small>
+          </span>
+          <span>›</span>
+        </button>
+
+        <button
+          class="setting-item clickable"
+          id="openVoiceApi"
+        >
+          <span>
+            <strong>语音 API</strong>
+            <small>TTS / STT</small>
+          </span>
+          <span>›</span>
+        </button>
+
+        <button
+          class="setting-item clickable"
+          id="openToolsApi"
+        >
+          <span>
+            <strong>搜索与 MCP</strong>
+            <small>统一放在工具接口</small>
+          </span>
+          <span>›</span>
+        </button>
+      </div>
+
+      <div class="settings-section-title">
+        基础行为
+      </div>
 
       <div class="setting-list">
         ${settingRow(
           "主动来信",
           "默认关闭",
           "proactiveMessages",
-          settings.proactiveMessages
-        )}
-
-        ${settingRow(
-          "语音朗读",
-          "TTS API / 浏览器合成",
-          "tts",
-          settings.tts
-        )}
-
-        ${settingRow(
-          "语音输入",
-          "浏览器语音识别",
-          "voiceInput",
-          settings.voiceInput
+          app.state.globalSettings.proactiveMessages
         )}
 
         ${settingRow(
           "自动总结",
-          "单独总结时才会增加请求",
+          "使用副 API",
           "autoSummary",
-          settings.autoSummary
+          app.state.globalSettings.autoSummary
         )}
 
-        <div class="setting-item">
-          <div>
-            <strong>聊天 API</strong>
-            <small>${chatPreset
-              ? escapeHtml(chatPreset.name)
-              : "未配置"}</small>
-          </div>
-
-          <button
-            class="capsule-button secondary"
-            id="editChatApi"
-          >
-            配置
-          </button>
-        </div>
-
-        <div class="setting-item">
-          <div>
+        <button
+          class="setting-item clickable"
+          id="openAssistantSetting"
+        >
+          <span>
             <strong>mmi助手</strong>
-            <small>${app.state.assistant.enabled
-              ? "已启用"
-              : "未启用"}</small>
-          </div>
-
-          <button
-            class="toggle ${
-              app.state.assistant.enabled ? "on" : ""
-            }"
-            id="toggleAssistant"
-          ></button>
-        </div>
+            <small>${
+              app.state.assistant.enabled
+                ? "已启用"
+                : "未启用"
+            }</small>
+          </span>
+          <span>›</span>
+        </button>
       </div>
     </section>
   `;
@@ -1240,34 +973,65 @@ function renderSettings() {
   bindSettingToggles();
 
   document
-    .querySelector("#editChatApi")
-    .addEventListener("click", renderApiSettings);
+    .querySelector("#openChatApi")
+    .addEventListener("click", () => {
+      renderApiForm("chat", "聊天 API");
+    });
 
   document
-    .querySelector("#toggleAssistant")
+    .querySelector("#openSubApi")
+    .addEventListener("click", () => {
+      renderApiForm("sub", "副 API");
+    });
+
+  document
+    .querySelector("#openImageApi")
+    .addEventListener("click", () => {
+      renderApiForm("image", "生图 API");
+    });
+
+  document
+    .querySelector("#openVoiceApi")
+    .addEventListener("click", () => {
+      renderApiForm("voice", "语音 API");
+    });
+
+  document
+    .querySelector("#openToolsApi")
+    .addEventListener("click", () => {
+      renderApiForm("tools", "搜索与 MCP");
+    });
+
+  document
+    .querySelector("#openAssistantSetting")
     .addEventListener("click", async () => {
       app.state.assistant.enabled =
         !app.state.assistant.enabled;
 
-      await saveSetting("assistant", app.state.assistant);
+      await saveSetting(
+        "assistant",
+        app.state.assistant
+      );
+
       renderSettings();
     });
 }
 
-function settingRow(title, description, key, enabled) {
+function settingRow(title, description, key, value) {
   return `
-    <div class="setting-item">
-      <div>
+    <button
+      class="setting-item clickable"
+      data-setting-key="${key}"
+    >
+      <span>
         <strong>${title}</strong>
         <small>${description}</small>
-      </div>
+      </span>
 
-      <button
-        class="toggle ${enabled ? "on" : ""}"
-        data-setting-key="${key}"
-        aria-label="${title}"
-      ></button>
-    </div>
+      <span
+        class="switch ${value ? "on" : ""}"
+      ></span>
+    </button>
   `;
 }
 
@@ -1291,38 +1055,51 @@ function bindSettingToggles() {
     });
 }
 
-function renderApiSettings() {
-  setTitle("聊天 API");
+function renderApiForm(kind, title) {
+  setTitle(title);
 
-  const preset =
-    app.apiPresets.find(item => item.kind === "chat")
-    || {
-      name: "我的聊天 API",
-      kind: "chat",
-      protocol: "openai-compatible",
-      baseUrl: "",
-      apiKey: "",
-      model: "",
-      temperature: 0.8,
-      maxTokens: 2048
-    };
+  const preset = app.apiPresets.find(
+    item => item.kind === kind
+  ) || {
+    name: "",
+    kind,
+    protocol: "openai-compatible",
+    baseUrl: "",
+    apiKey: "",
+    model: "",
+    temperature: 0.8,
+    maxTokens: 2048
+  };
 
-  app.viewport.innerHTML = `
+  viewport.innerHTML = `
     <section class="page-card glass-card">
       <p class="eyebrow">API PRESET</p>
-      <h2>聊天 API</h2>
+      <h2>${title}</h2>
 
-      <form class="form-list" id="apiForm">
+      <form
+        class="form-list"
+        id="apiForm"
+      >
         <label>
           预设名称
-          <input name="name" value="${escapeAttr(preset.name)}">
+          <input
+            name="name"
+            value="${escapeAttr(preset.name)}"
+            placeholder="例如：我的聊天模型"
+          >
         </label>
 
         <label>
-          类型
+          协议
           <select name="protocol">
             <option value="openai-compatible">
-              OpenAI 兼容
+              OpenAI 兼容协议
+            </option>
+            <option value="gemini">
+              Gemini
+            </option>
+            <option value="custom">
+              自定义
             </option>
           </select>
         </label>
@@ -1333,7 +1110,6 @@ function renderApiSettings() {
             name="baseUrl"
             value="${escapeAttr(preset.baseUrl)}"
             placeholder="https://api.openai.com"
-            required
           >
         </label>
 
@@ -1343,7 +1119,6 @@ function renderApiSettings() {
             name="apiKey"
             type="password"
             value="${escapeAttr(preset.apiKey)}"
-            required
           >
         </label>
 
@@ -1353,7 +1128,6 @@ function renderApiSettings() {
             name="model"
             value="${escapeAttr(preset.model)}"
             placeholder="例如 gpt-4o-mini"
-            required
           >
         </label>
 
@@ -1379,8 +1153,11 @@ function renderApiSettings() {
           >
         </label>
 
-        <button class="capsule-button primary" type="submit">
-          保存 API
+        <button
+          class="capsule-button primary"
+          type="submit"
+        >
+          保存接口
         </button>
       </form>
     </section>
@@ -1391,141 +1168,223 @@ function renderApiSettings() {
     .addEventListener("submit", async event => {
       event.preventDefault();
 
-      const data = new FormData(event.currentTarget);
+      const form = new FormData(event.currentTarget);
 
-      const saved = await saveApiPreset({
+      await saveApiPreset({
         id: preset.id,
-        name: data.get("name"),
-        kind: "chat",
-        protocol: data.get("protocol"),
-        baseUrl: data.get("baseUrl"),
-        apiKey: data.get("apiKey"),
-        model: data.get("model"),
-        temperature: data.get("temperature"),
-        maxTokens: data.get("maxTokens")
+        name: form.get("name"),
+        kind,
+        protocol: form.get("protocol"),
+        baseUrl: form.get("baseUrl"),
+        apiKey: form.get("apiKey"),
+        model: form.get("model"),
+        temperature: form.get("temperature"),
+        maxTokens: form.get("maxTokens")
       });
 
       app.apiPresets = await getApiPresets();
-
-      event.currentTarget
-        .querySelector("button")
-        .textContent = "已保存";
-
-      setTimeout(() => renderSettings(), 700);
+      renderSettings();
     });
 }
 
-function renderAppearance() {
-  setRouteState("appearance");
-  setTitle("外观");
-
-  app.viewport.innerHTML = `
-    <section class="page-card glass-card">
-      <p class="eyebrow">APPEARANCE</p>
-      <h2>外观界面</h2>
-
-      <div class="setting-list">
-        <div class="setting-item">
-          <div>
-            <strong>视觉主题</strong>
-            <small>晶蓝磨砂玻璃</small>
-          </div>
-          <span class="capsule">当前</span>
-        </div>
-
-        <div class="setting-item">
-          <div>
-            <strong>桌面图标</strong>
-            <small>可整理顺序</small>
-          </div>
-          <span class="capsule">支持拖动</span>
-        </div>
-
-        <div class="setting-item">
-          <div>
-            <strong>欢迎卡片</strong>
-            <small>回到桌面直接编辑文字</small>
-          </div>
-          <span class="capsule">可编辑</span>
-        </div>
-      </div>
-    </section>
-  `;
-}
-
-function renderGallery() {
-  setRouteState("gallery");
-  setTitle("相册");
-
-  app.viewport.innerHTML = `
-    <section class="page-card glass-card">
-      <p class="eyebrow">IMAGE STUDIO</p>
-      <h2>相册</h2>
-      <p class="muted-text">
-        NovelAI、OpenAI Images 和其他生图接口将在这里配置。
-      </p>
-
-      <button class="capsule-button primary">
-        ＋ 创建生图任务
-      </button>
-    </section>
-
-    <section class="empty-state">
-      <div class="empty-icon">▧</div>
-      <p>还没有生成图片</p>
-    </section>
-  `;
-}
-
 function renderTools() {
-  setRouteState("tools");
   setTitle("工具");
 
-  app.viewport.innerHTML = `
+  viewport.innerHTML = `
     <section class="page-card glass-card">
       <p class="eyebrow">TOOLS</p>
       <h2>工具</h2>
 
       <div class="setting-list">
-        <div class="setting-item">
-          <div>
+        <button
+          class="setting-item clickable"
+          id="searchToolButton"
+        >
+          <span>
             <strong>联网搜索</strong>
-            <small>作为工具接入聊天</small>
-          </div>
-          <button class="capsule-button secondary">
-            配置
-          </button>
-        </div>
+            <small>作为聊天工具调用</small>
+          </span>
+          <span>›</span>
+        </button>
 
-        <div class="setting-item">
-          <div>
+        <button
+          class="setting-item clickable"
+          id="mcpToolButton"
+        >
+          <span>
             <strong>MCP</strong>
-            <small>默认关闭</small>
-          </div>
-          <button class="capsule-button secondary">
-            配置
-          </button>
-        </div>
+            <small>HTTP / SSE Server</small>
+          </span>
+          <span>›</span>
+        </button>
 
-        <div class="setting-item">
-          <div>
-            <strong>总结 API</strong>
-            <small>可绑定单独的低价模型</small>
-          </div>
-          <button class="capsule-button secondary">
-            配置
-          </button>
-        </div>
+        <button
+          class="setting-item clickable"
+          id="subApiToolButton"
+        >
+          <span>
+            <strong>副 API</strong>
+            <small>总结、番外、论坛生成</small>
+          </span>
+          <span>›</span>
+        </button>
       </div>
     </section>
   `;
+
+  document
+    .querySelector("#searchToolButton")
+    .addEventListener("click", () => {
+      renderApiForm("tools", "搜索接口");
+    });
+
+  document
+    .querySelector("#mcpToolButton")
+    .addEventListener("click", () => {
+      renderApiForm("mcp", "MCP 接口");
+    });
+
+  document
+    .querySelector("#subApiToolButton")
+    .addEventListener("click", () => {
+      renderApiForm("sub", "副 API");
+    });
+}
+
+function renderCharacters() {
+  setTitle("档案");
+
+  viewport.innerHTML = `
+    <section class="page-card glass-card">
+      <p class="eyebrow">CHAR ARCHIVE</p>
+      <h2>档案</h2>
+
+      <div class="button-row">
+        <button
+          class="capsule-button primary"
+          id="createChar"
+        >
+          ＋ 创建 char
+        </button>
+
+        <button
+          class="capsule-button secondary"
+          id="importChar"
+        >
+          导入酒馆卡
+        </button>
+      </div>
+    </section>
+
+    <div class="section-heading">
+      <h3>我的 char</h3>
+      <span>${app.chars.length} 位</span>
+    </div>
+
+    ${
+      app.chars.length
+        ? app.chars.map(renderCharCard).join("")
+        : `
+          <section class="empty-state">
+            <div class="empty-icon">♢</div>
+            <p>还没有 char</p>
+          </section>
+        `
+    }
+  `;
+
+  document
+    .querySelector("#createChar")
+    .addEventListener("click", () => {
+      alert("创建 char 页面将在下一批接入。");
+    });
+
+  document
+    .querySelector("#importChar")
+    .addEventListener("click", () => {
+      alert("酒馆卡导入入口已建立，PNG 解析将在导入模块中接入。");
+    });
+}
+
+function renderChat(charId) {
+  const char = app.chars.find(
+    item => item.id === charId
+  );
+
+  if (!char) return;
+
+  app.currentChatChar = char;
+  renderRoute("messages");
+  setTitle(char.name);
+
+  viewport.innerHTML = `
+    <section class="chat-page">
+      <div class="chat-top-card glass-card">
+        <button
+          class="chat-avatar-button"
+          id="chatAvatar"
+        >
+          ${escapeHtml(char.avatarText || "?")}
+        </button>
+
+        <div>
+          <p class="eyebrow">CHAT</p>
+          <h2>${escapeHtml(char.name)}</h2>
+          <span class="muted-text">
+            ${escapeHtml(char.subtitle || "")}
+          </span>
+        </div>
+      </div>
+
+      <section class="empty-chat glass-card">
+        <div class="empty-icon">◌</div>
+        <p>聊天界面基础框架已建立</p>
+        <small>
+          配置聊天 API 后，这里接入真实消息请求。
+        </small>
+      </section>
+
+      <form
+        class="chat-composer"
+        id="chatComposer"
+      >
+        <textarea
+          rows="1"
+          placeholder="输入消息"
+          required
+        ></textarea>
+
+        <button
+          class="send-button"
+          type="submit"
+        >
+          ↑
+        </button>
+      </form>
+    </section>
+  `;
+
+  document
+    .querySelector("#chatAvatar")
+    .addEventListener("click", () => {
+      openCharModal(char);
+    });
+
+  document
+    .querySelector("#chatComposer")
+    .addEventListener("submit", event => {
+      event.preventDefault();
+
+      alert(
+        "聊天发送按钮已接通界面。下一步接入真正的 LLM 请求与消息落库。"
+      );
+    });
 }
 
 function renderPlaceholder(title, eyebrow, description) {
-  setRouteState(title === "外观" ? "appearance" : app.state.route);
   setTitle(title);
 
-  app.viewport.innerHTML = `
+  viewport.innerHTML = `
     <section class="page-card glass-card">
       <p class="eyebrow">${eyebrow}</p>
       <h2>${title}</h2>
@@ -1534,28 +1393,41 @@ function renderPlaceholder(title, eyebrow, description) {
 
     <section class="empty-state">
       <div class="empty-icon">✦</div>
-      <p>还没有内容</p>
+      <p>功能入口已建立</p>
     </section>
   `;
 }
 
-function showInlineError(message, actionText, action) {
-  const element = document.createElement("div");
+function openCharModal(char) {
+  const modal = document.querySelector("#charModal");
 
-  element.className = "inline-error glass-card";
-  element.innerHTML = `
-    <span>${escapeHtml(message)}</span>
-    <button class="capsule-button secondary">
-      ${escapeHtml(actionText)}
-    </button>
-  `;
+  modal.dataset.charId = char.id;
 
-  element.querySelector("button").addEventListener("click", action);
-  app.viewport.prepend(element);
+  document.querySelector("#modalCharAvatar").textContent =
+    char.avatarText || "?";
+
+  document.querySelector("#modalCharName").textContent =
+    char.name;
+
+  document.querySelector("#modalCharSubtitle").textContent =
+    char.subtitle || "你的 char";
+
+  document.querySelector("#modalMood").textContent =
+    char.mood || "未知";
+
+  document.querySelector("#modalAffection").textContent =
+    char.affection || 0;
+
+  document.querySelector("#modalThoughts").textContent =
+    char.thoughts || "暂无心声记录。";
+
+  modal.classList.remove("hidden");
 }
 
-function wait(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function closeCharModal() {
+  document
+    .querySelector("#charModal")
+    .classList.add("hidden");
 }
 
 function escapeHtml(value) {
@@ -1574,10 +1446,12 @@ function escapeAttr(value) {
 init().catch(error => {
   console.error(error);
 
-  app.viewport.innerHTML = `
+  viewport.innerHTML = `
     <section class="page-card glass-card">
       <h2>mmi机启动失败</h2>
-      <p class="muted-text">${escapeHtml(error.message)}</p>
+      <p class="muted-text">
+        ${escapeHtml(error.message)}
+      </p>
     </section>
   `;
 });
