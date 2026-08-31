@@ -3,6 +3,7 @@ import { PhoneShell } from "./shell/PhoneShell";
 import { HomePage } from "./pages/Home/HomePage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { UserProfilePage } from "./pages/Profile/UserProfilePage";
+import { CharactersPage } from "./pages/Characters/CharactersPage";
 import type { RouteName } from "./constants/apps";
 import type { UserProfile } from "./types/models";
 import {
@@ -19,7 +20,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    getUserProfile().then((loadedProfile) => {
+    void getUserProfile().then((loadedProfile) => {
       if (!cancelled) {
         setProfile(loadedProfile);
       }
@@ -45,9 +46,7 @@ export default function App() {
   }, [profile?.avatarBlob]);
 
   function navigate(nextRoute: RouteName) {
-    if (nextRoute === route) {
-      return;
-    }
+    if (nextRoute === route) return;
 
     setHistory((current) => [...current, route]);
     setRoute(nextRoute);
@@ -59,7 +58,6 @@ export default function App() {
       const previous = next.pop();
 
       setRoute(previous ?? "home");
-
       return next;
     });
   }
@@ -74,7 +72,11 @@ export default function App() {
       return <HomePage onNavigate={navigate} />;
     }
 
-    if (route === "profiles" && profile) {
+    if (route === "profiles") {
+      return <CharactersPage />;
+    }
+
+    if (route === "me" && profile) {
       return (
         <UserProfilePage
           profile={profile}
