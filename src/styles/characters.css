@@ -1,0 +1,218 @@
+.characters-page {
+  min-height: 100%;
+  padding: var(--space-4);
+}
+
+.characters-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.characters-heading h2 {
+  margin: 5px 0 0;
+  font-size: 25px;
+}
+
+.character-add-button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  margin-top: 0;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.character-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.character-card {
+  padding: var(--space-4);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: var(--radius-l);
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow:
+    0 12px 28px rgba(75, 147, 183, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.character-card-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.character-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  color: white;
+  background: linear-gradient(135deg, #6bcbed, #7480df);
+  box-shadow: 0 7px 15px rgba(74, 143, 190, 0.2);
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.character-card-text {
+  min-width: 0;
+}
+
+.character-card-text h3 {
+  margin: 0 0 5px;
+  overflow: hidden;
+  color: var(--ink-900);
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.character-card-text p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-500);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.character-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: var(--space-3);
+}
+
+.small-button,
+.secondary-button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: var(--radius-pill);
+  color: var(--ink-700);
+  background: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.small-button-primary {
+  color: white;
+  background: linear-gradient(135deg, #65c8ed, #6682df);
+}
+
+.small-button-danger {
+  color: #ad6074;
+  background: rgba(255, 231, 237, 0.7);
+}
+
+.empty-characters {
+  display: flex;
+  min-height: 300px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  text-align: center;
+}
+
+.empty-character-icon {
+  display: grid;
+  place-items: center;
+  width: 74px;
+  height: 74px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 25px;
+  color: var(--blue-600);
+  background: rgba(255, 255, 255, 0.52);
+  font-size: 34px;
+}
+
+.empty-characters h3 {
+  margin: 16px 0 5px;
+  font-size: 20px;
+}
+
+.empty-characters p {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: 13px;
+}
+
+.empty-characters .primary-button {
+  margin-top: 18px;
+}
+
+.character-editor {
+  display: flex;
+  max-width: 680px;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0 auto;
+}
+
+.character-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.character-editor-heading h2 {
+  margin: 5px 0 0;
+  font-size: 25px;
+}
+
+.character-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--ink-700);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.character-field input,
+.character-field textarea {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: var(--radius-m);
+  outline: none;
+  color: var(--ink-900);
+  background: rgba(255, 255, 255, 0.64);
+  font-size: 16px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.character-field input {
+  min-height: 48px;
+}
+
+.character-field input:focus,
+.character-field textarea:focus {
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 3px rgba(90, 189, 233, 0.16);
+}
+
+@media (max-width: 360px) {
+  .character-card-actions {
+    flex-wrap: wrap;
+  }
+
+  .small-button {
+    flex: 1;
+  }
+}
